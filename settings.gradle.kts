@@ -21,4 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "DragAndDropAndStack"
 include(":app")
- 
+include(":reorderable")

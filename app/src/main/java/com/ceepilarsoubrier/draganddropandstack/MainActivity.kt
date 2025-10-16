@@ -49,6 +49,11 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.zIndex
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 
 import androidx.compose.foundation.layout.Box
@@ -109,15 +114,17 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             DragAndDropAndStackTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                val snackbarHostState = remember { SnackbarHostState() }
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+                ) { innerPadding ->
                     Greeting(
                         name = "Android",
                         modifier = Modifier.padding(innerPadding)
                     )
 
-                    SimpleReorderableLazyVerticalGridScreen()
-
-
+                    SimpleReorderableLazyVerticalGridScreen(snackbarHostState)
                 }
             }
         }
@@ -127,7 +134,9 @@ class MainActivity : ComponentActivity() {
 data class Item(val id: Int, val text: String, val size: Int)
 
 @Composable
-fun SimpleReorderableLazyVerticalGridScreen() {
+fun SimpleReorderableLazyVerticalGridScreen(
+    snackbarHostState: SnackbarHostState,
+) {
 
     val items = (0..200).map {
         Item(id = it, text = "Item #$it", size = if (it % 2 == 0) 70 else 100)
@@ -141,6 +150,10 @@ fun SimpleReorderableLazyVerticalGridScreen() {
             }
         }
     }
+
+    // Track item bounds in root for overlap calculations
+    val itemBoundsById = remember { mutableStateMapOf<Int, Rect>() }
+    val coroutineScope = rememberCoroutineScope()
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 96.dp),
@@ -158,6 +171,9 @@ fun SimpleReorderableLazyVerticalGridScreen() {
                     onClick = {},
                     modifier = Modifier
                         .height(96.dp)
+                        .onGloballyPositioned { coordinates ->
+                            itemBoundsById[item.id] = coordinates.boundsInRoot()
+                        }
                         .semantics {
                             customActions = listOf(
                                 CustomAccessibilityAction(
@@ -230,6 +246,31 @@ private fun intersectionArea(a: Rect, b: Rect): Float {
     val w = right - left
     val h = bottom - top
     return if (w > 0f && h > 0f) w * h else 0f
+}
+
+// Translate a Rect by an Offset (helper for drag projection)
+private fun Rect.translateBy(offset: Offset): Rect =
+    Rect(left + offset.x, top + offset.y, right + offset.x, bottom + offset.y)
+
+// Simple drag session holder kept at file level (per composition instance it resets on recomposition of modifier)
+private object dragSession {
+    var currentDragId: Int? = null
+    var currentOffset: Offset? = null
+    var dropOverTargetId: Int? = null
+    var lastHoverTargetId: Int? = null
+    var hoverAccumulatedMs: Long? = null
+    var lastEventUptimeMs: Long? = null
+    var lastOverlapRatio: Float = 0f
+
+    fun reset() {
+        currentDragId = null
+        currentOffset = null
+        dropOverTargetId = null
+        lastHoverTargetId = null
+        hoverAccumulatedMs = null
+        lastEventUptimeMs = null
+        lastOverlapRatio = 0f
+    }
 }
 
 @Composable
