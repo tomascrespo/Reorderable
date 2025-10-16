@@ -143,17 +143,51 @@ fun SimpleReorderableLazyVerticalGridScreen(
     }
     var list by remember { mutableStateOf(items) }
     val lazyGridState = rememberLazyGridState()
-    val reorderableLazyGridState = rememberReorderableLazyGridState(lazyGridState) { from, to ->
-        list = list.toMutableList().apply {
-            this[to.index] = this[from.index].also {
-                this[from.index] = this[to.index]
+    val coroutineScope = rememberCoroutineScope()
+    val hoverAccumByTarget = remember { mutableStateMapOf<Int, Long>() }
+    var lastHoverTarget by remember { mutableStateOf<Int?>(null) }
+    var lastUptime by remember { mutableStateOf(android.os.SystemClock.uptimeMillis()) }
+
+    val reorderableLazyGridState = rememberReorderableLazyGridState(
+        lazyGridState,
+        onMove = { from, to ->
+            list = list.toMutableList().apply {
+                this[to.index] = this[from.index].also {
+                    this[from.index] = this[to.index]
+                }
+            }
+        },
+        canDragOver = { dragKey, overKey, ratioFromLib ->
+            val dragId = (dragKey as? Int) ?: return@rememberReorderableLazyGridState true
+            val overId = (overKey as? Int) ?: return@rememberReorderableLazyGridState true
+
+            val now = android.os.SystemClock.uptimeMillis()
+            val elapsed = now - lastUptime
+            lastUptime = now
+
+            val current = if (lastHoverTarget == overId) {
+                (hoverAccumByTarget[overId] ?: 0L) + elapsed
+            } else 0L
+            hoverAccumByTarget[overId] = current
+            lastHoverTarget = overId
+
+            when {
+                ratioFromLib >= 0.8f -> false
+                current < 800L -> false
+                else -> true
+            }
+        },
+        onDropOver = { dragKey, overKey ->
+            val dragId = (dragKey as? Int) ?: return@rememberReorderableLazyGridState
+            val overId = (overKey as? Int) ?: return@rememberReorderableLazyGridState
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("item $dragId soltado sobre item $overId")
             }
         }
-    }
+    )
 
     // Track item bounds in root for overlap calculations
     val itemBoundsById = remember { mutableStateMapOf<Int, Rect>() }
-    val coroutineScope = rememberCoroutineScope()
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 96.dp),

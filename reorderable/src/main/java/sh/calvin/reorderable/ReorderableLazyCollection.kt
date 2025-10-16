@@ -16,6 +16,8 @@
 
 package sh.calvin.reorderable
 
+import android.util.Log
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Spring
@@ -284,6 +286,8 @@ open class ReorderableLazyCollectionState<out T> internal constructor(
     private val shouldItemMove: (draggingItem: Rect, item: Rect) -> Boolean = { draggingItem, item ->
         draggingItem.contains(item.center)
     },
+    private val canDragOver: ((dragKey: Any, overKey: Any, overlapRatio: Float) -> Boolean)? = null,
+    private val onDropOver: ((dragKey: Any, overKey: Any) -> Unit)? = null,
 ) : ReorderableLazyCollectionStateInterface {
     private val onMoveStateMutex: Mutex = Mutex()
 
@@ -406,12 +410,43 @@ open class ReorderableLazyCollectionState<out T> internal constructor(
                 previousDraggingItemKey = null
             }
         }
+        // compute drop-over before clearing
+        val droppingKey = draggingItemKey
+        val droppingItem = draggingItemLayoutInfo
+        val droppingDragOffset = draggingItemOffset.reverseAxisIfNecessary()
+            .reverseAxisWithLayoutDirectionIfLazyVerticalStaggeredGridRtlFix()
+        val droppingStart = droppingItem?.offset?.toOffset()?.plus(droppingDragOffset)
+        val droppingEnd = droppingStart?.plus(droppingItem?.size?.toSize() ?: IntSize.Zero.toSize())
+
         draggingItemDraggedDelta = Offset.Zero
         draggingItemKey = null
         draggingItemInitialOffset = previousDraggingItemInitialOffset ?: IntOffset.Zero
         scroller.tryStop()
         oldDraggingItemIndex = null
         predictedDraggingItemOffset = null
+
+        if (droppingKey != null && droppingItem != null && droppingStart != null && droppingEnd != null) {
+            val droppingRect = Rect(droppingStart, droppingEnd)
+            var best: LazyCollectionItemInfo<T>? = null
+            var bestRatio = 0f
+            state.layoutInfo.visibleItemsInfo.forEach { item ->
+                if (item.index != droppingItem.index && item.key in reorderableKeys) {
+                    val ratio = overlapRatio(droppingRect, item)
+                    if (ratio > bestRatio) {
+                        bestRatio = ratio
+                        best = item
+                    }
+                }
+            }
+            if (best != null) {
+                val overKey = best!!.key
+                Log.d("Reorderable", "onDragStop: drop drag=" + droppingKey + " over=" + overKey + " ratio=" + String.format("%.2f", bestRatio))
+                val canMove = canDragOver?.invoke(droppingKey, overKey, bestRatio)
+                if (canMove == false) {
+                    onDropOver?.invoke(droppingKey, overKey)
+                }
+            }
+        }
     }
 
     internal fun onDrag(offset: Offset) {
@@ -492,6 +527,16 @@ open class ReorderableLazyCollectionState<out T> internal constructor(
                 it.index != draggingItem.index
             }
             if (targetItem != null) {
+                // External gate: prevent displacement when requested
+                val ratio = overlapRatio(draggingItemRect, targetItem)
+                val dragKey = draggingItem.key
+                val overKey = targetItem.key
+                val canMove = canDragOver?.invoke(dragKey, overKey, ratio) ?: true
+                Log.d("Reorderable", "onDrag: drag=" + dragKey + " over=" + overKey + " ratio=" + String.format("%.2f", ratio) + " canMove=" + canMove)
+                if (!canMove) {
+                    onMoveStateMutex.unlock()
+                    return
+                }
                 scope.launch {
                     moveItems(draggingItem, targetItem)
                 }
@@ -608,6 +653,22 @@ open class ReorderableLazyCollectionState<out T> internal constructor(
             Scroller.Direction.BACKWARD -> items.findLast(targetItemFunc)
         }
         return targetItem
+    }
+
+    private fun overlapRatio(
+        draggingItemRect: Rect,
+        targetItem: LazyCollectionItemInfo<T>,
+    ): Float {
+        val targetRect = Rect(targetItem.offset.toOffset(), targetItem.size.toSize())
+        val left = maxOf(draggingItemRect.left, targetRect.left)
+        val top = maxOf(draggingItemRect.top, targetRect.top)
+        val right = minOf(draggingItemRect.right, targetRect.right)
+        val bottom = minOf(draggingItemRect.bottom, targetRect.bottom)
+        val w = (right - left).coerceAtLeast(0f)
+        val h = (bottom - top).coerceAtLeast(0f)
+        val inter = if (w > 0f && h > 0f) w * h else 0f
+        val area = (draggingItemRect.right - draggingItemRect.left) * (draggingItemRect.bottom - draggingItemRect.top)
+        return if (area > 0f) inter / area else 0f
     }
 
     private val layoutInfoFlow = snapshotFlow { state.layoutInfo }
