@@ -103,14 +103,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyGridState
+import sh.calvin.reorderable.ScrollMoveMode
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-
-        var lazyGridItems = (1..20).map { "Grid Item $it" }
 
         setContent {
             DragAndDropAndStackTheme {
@@ -131,15 +129,18 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-data class Item(val id: Int, val text: String, val size: Int)
+data class Item(val id: Int, var text: String, val size: Int)
 
 @Composable
 fun SimpleReorderableLazyVerticalGridScreen(
     snackbarHostState: SnackbarHostState,
 ) {
+    // Dentro de SimpleReorderableLazyVerticalGridScreen(...)
+    val overlapThreshold = 0.8f      // cambia a tu gusto, p.ej. 0.7f
+    val hoverDelayMs = 400L          // cambia a tu gusto, p.ej. 500L
 
     val items = (0..200).map {
-        Item(id = it, text = "Item #$it", size = if (it % 2 == 0) 70 else 100)
+        Item(id = it, text = "$it", size = if (it % 2 == 0) 70 else 100)
     }
     var list by remember { mutableStateOf(items) }
     val lazyGridState = rememberLazyGridState()
@@ -150,12 +151,11 @@ fun SimpleReorderableLazyVerticalGridScreen(
 
     val reorderableLazyGridState = rememberReorderableLazyGridState(
         lazyGridState,
+        scrollMoveMode = ScrollMoveMode.INSERT,
         onMove = { from, to ->
             list = list.toMutableList().apply {
-                this[to.index] = this[from.index].also {
-                    this[from.index] = this[to.index]
-                }
-            }
+                add(to.index, removeAt(from.index))
+            }.toList()
         },
         canDragOver = { dragKey, overKey, ratioFromLib ->
             val dragId = (dragKey as? Int) ?: return@rememberReorderableLazyGridState true
@@ -172,8 +172,8 @@ fun SimpleReorderableLazyVerticalGridScreen(
             lastHoverTarget = overId
 
             when {
-                ratioFromLib >= 0.8f -> false
-                current < 800L -> false
+                ratioFromLib >= overlapThreshold -> false
+                current < hoverDelayMs -> false
                 else -> true
             }
         },
@@ -184,11 +184,19 @@ fun SimpleReorderableLazyVerticalGridScreen(
             val overItem = list.firstOrNull { it.id == overId }
             coroutineScope.launch {
                 val message = if (draggedItem != null && overItem != null) {
+                    overItem.text += "," + draggedItem.text
+                    list = list.toMutableList().apply {
+                        remove(draggedItem) }.toList()
                     "${draggedItem.text} soltado sobre ${overItem.text}"
+
                 } else {
                     "item $dragId soltado sobre item $overId"
                 }
-                snackbarHostState.showSnackbar(message)
+                //snackbarHostState.showSnackbar(message)
+                // Reset hover/timing state after handling a drop to avoid stale 800ms carry-over
+                hoverAccumByTarget.clear()
+                lastHoverTarget = null
+                lastUptime = android.os.SystemClock.uptimeMillis()
             }
         }
     )
@@ -253,8 +261,16 @@ fun SimpleReorderableLazyVerticalGridScreen(
                                 .align(Alignment.TopEnd)
                                 .draggableHandle(
                                     onDragStarted = {
+                                        // Fresh timing per drag session
+                                        hoverAccumByTarget.clear()
+                                        lastHoverTarget = null
+                                        lastUptime = android.os.SystemClock.uptimeMillis()
                                     },
                                     onDragStopped = {
+                                        // Also reset when drag ends without drop-over
+                                        hoverAccumByTarget.clear()
+                                        lastHoverTarget = null
+                                        lastUptime = android.os.SystemClock.uptimeMillis()
                                     },
                                     interactionSource = interactionSource,
                                 )
