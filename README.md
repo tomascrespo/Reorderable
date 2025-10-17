@@ -3,35 +3,21 @@
 This is a fork of the great job done by Calvin Liang. I use his library in a project but I also need to drag items over other items. I tried to accomplish this without modifiying its library, using wrapped modifiers, but I did not success, so I have edited the library inserting some hooks.
 
 
-
-
-
 <table width="100%" align="center">
-  <thead>
-    <tr>
-      <th width="50%">LazyColumn</th>
-      <th width="50%">LazyGrid</th>
-    </tr>
-  </thead>
   <tbody>
     <tr>
       <td width="50%">
         <img
-          src="lazy-column-demo.webp"
+          src="reorderandstack.webp"
           width="320"
-          alt="A video showing an item being reordered in a LazyColumn"
-        />
-      </td>
-      <td width="50%">
-        <img
-          src="lazy-grid-demo.webp"
-          width="320"
-          alt="A video showing an item being reordered in a LazyGrid"
+          alt="A video showing some items being reordered and some being stacked"
         />
       </td>
     </tr>
   </tbody>
 </table>
+
+
 
 ## Features
 
