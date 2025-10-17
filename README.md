@@ -87,5 +87,6 @@ val reorderableLazyGridState = rememberReorderableLazyGridState(
     )
 
 ```
+ 
 If you do not want stackable behaviour simply do not set canDragOver and onDropOver. This way you can have different grids with the same library, one with stackable behaviour and other without it.
-- 
+
