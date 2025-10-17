@@ -532,7 +532,7 @@ open class ReorderableLazyCollectionState<out T> internal constructor(
                 val dragKey = draggingItem.key
                 val overKey = targetItem.key
                 val canMove = canDragOver?.invoke(dragKey, overKey, ratio) ?: true
-                Log.d("Reorderable", "onDrag: drag=" + dragKey + " over=" + overKey + " ratio=" + String.format("%.2f", ratio) + " canMove=" + canMove)
+                if (ratio > 0.8)                Log.d("Reorderable", "onDrag: drag=" + dragKey + " over=" + overKey + " ratio=" + String.format("%.2f", ratio) + " canMove=" + canMove)
                 if (!canMove) {
                     onMoveStateMutex.unlock()
                     return

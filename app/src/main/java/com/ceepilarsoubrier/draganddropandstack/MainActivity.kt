@@ -180,8 +180,15 @@ fun SimpleReorderableLazyVerticalGridScreen(
         onDropOver = { dragKey, overKey ->
             val dragId = (dragKey as? Int) ?: return@rememberReorderableLazyGridState
             val overId = (overKey as? Int) ?: return@rememberReorderableLazyGridState
+            val draggedItem = list.firstOrNull { it.id == dragId }
+            val overItem = list.firstOrNull { it.id == overId }
             coroutineScope.launch {
-                snackbarHostState.showSnackbar("item $dragId soltado sobre item $overId")
+                val message = if (draggedItem != null && overItem != null) {
+                    "${draggedItem.text} soltado sobre ${overItem.text}"
+                } else {
+                    "item $dragId soltado sobre item $overId"
+                }
+                snackbarHostState.showSnackbar(message)
             }
         }
     )
