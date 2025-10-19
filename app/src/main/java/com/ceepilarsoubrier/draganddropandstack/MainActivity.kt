@@ -82,7 +82,9 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -112,17 +114,30 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             DragAndDropAndStackTheme {
-                val snackbarHostState = remember { SnackbarHostState() }
                 Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+                    modifier = Modifier.fillMaxSize()
                 ) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                    // Usa una Column para organizar los elementos verticalmente
+                    Column(modifier = Modifier.padding(innerPadding)) {
+                        Greeting(
+                            name = "Grid 1",
+                            modifier = Modifier.padding(innerPadding)
+                        )
+                        val items = (0..25).map {
+                            Item(id = it, text = "$it", size = if (it % 2 == 0) 70 else 100)
+                        }
+                        SimpleReorderableLazyVerticalGridScreen(items)
 
-                    SimpleReorderableLazyVerticalGridScreen(snackbarHostState)
+                        Greeting(
+                            name = "Grid 2",
+                            modifier = Modifier.padding(innerPadding)
+                        )
+
+                        val otherItems = (30..50).map {
+                            Item(id = it, text = "$it", size = if (it % 2 == 0) 70 else 100)
+                        }
+                        SimpleReorderableLazyVerticalGridScreen(otherItems)
+                    }
                 }
             }
         }
@@ -133,15 +148,12 @@ data class Item(val id: Int, var text: String, val size: Int)
 
 @Composable
 fun SimpleReorderableLazyVerticalGridScreen(
-    snackbarHostState: SnackbarHostState,
+    items: List<Item>
 ) {
     // Dentro de SimpleReorderableLazyVerticalGridScreen(...)
     val overlapThreshold = 0.8f      // cambia a tu gusto, p.ej. 0.7f
-    val hoverDelayMs = 400L          // cambia a tu gusto, p.ej. 500L
+    val hoverDelayMs = 800L          // cambia a tu gusto, p.ej. 500L
 
-    val items = (0..200).map {
-        Item(id = it, text = "$it", size = if (it % 2 == 0) 70 else 100)
-    }
     var list by remember { mutableStateOf(items) }
     val lazyGridState = rememberLazyGridState()
     val coroutineScope = rememberCoroutineScope()
@@ -206,7 +218,7 @@ fun SimpleReorderableLazyVerticalGridScreen(
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 96.dp),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxWidth(),
         state = lazyGridState,
         contentPadding = PaddingValues(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -281,7 +293,9 @@ fun SimpleReorderableLazyVerticalGridScreen(
                         }
                         Text(
                             item.text,
-                            Modifier.align(Alignment.Center).padding(horizontal = 8.dp),
+                            Modifier
+                                .align(Alignment.Center)
+                                .padding(horizontal = 8.dp),
                             textAlign = TextAlign.Center,
                         )
                     }

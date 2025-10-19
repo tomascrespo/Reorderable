@@ -70,6 +70,7 @@ fun rememberReorderableLazyGridState(
     onMove: suspend CoroutineScope.(from: LazyGridItemInfo, to: LazyGridItemInfo) -> Unit,
     canDragOver: ((dragKey: Any, overKey: Any, overlapRatio: Float) -> Boolean)? = null,
     onDropOver: ((dragKey: Any, overKey: Any) -> Unit)? = null,
+    dropOverlapThreshold: Float? = null,
 ): ReorderableLazyGridState {
     val density = LocalDensity.current
     val scrollThresholdPx = with(density) { scrollThreshold.toPx() }
@@ -101,6 +102,7 @@ fun rememberReorderableLazyGridState(
             layoutDirection = layoutDirection,
             canDragOver = canDragOver,
             onDropOver = onDropOver,
+            dropOverlapThreshold = dropOverlapThreshold,
         )
     }
     return state
@@ -178,6 +180,7 @@ class ReorderableLazyGridState internal constructor(
     layoutDirection: LayoutDirection,
     canDragOver: ((dragKey: Any, overKey: Any, overlapRatio: Float) -> Boolean)?,
     onDropOver: ((dragKey: Any, overKey: Any) -> Unit)?,
+    dropOverlapThreshold: Float?,
 ) : ReorderableLazyCollectionState<LazyGridItemInfo>(
     state.toLazyCollectionState(),
     scope,
@@ -189,6 +192,7 @@ class ReorderableLazyGridState internal constructor(
     layoutDirection,
     canDragOver = canDragOver,
     onDropOver = onDropOver,
+    dropOverlapThreshold = dropOverlapThreshold,
 )
 
 /**

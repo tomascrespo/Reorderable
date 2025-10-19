@@ -288,6 +288,7 @@ open class ReorderableLazyCollectionState<out T> internal constructor(
     },
     private val canDragOver: ((dragKey: Any, overKey: Any, overlapRatio: Float) -> Boolean)? = null,
     private val onDropOver: ((dragKey: Any, overKey: Any) -> Unit)? = null,
+    private val dropOverlapThreshold: Float? = null,
 ) : ReorderableLazyCollectionStateInterface {
     private val onMoveStateMutex: Mutex = Mutex()
 
@@ -441,8 +442,10 @@ open class ReorderableLazyCollectionState<out T> internal constructor(
             if (best != null) {
                 val overKey = best!!.key
                 Log.d("Reorderable", "onDragStop: drop drag=" + droppingKey + " over=" + overKey + " ratio=" + String.format("%.2f", bestRatio))
-                val canMove = canDragOver?.invoke(droppingKey, overKey, bestRatio)
-                if (canMove == false) {
+                val threshold = dropOverlapThreshold ?: 0.8f
+                // Only treat as drop-over when the actual overlap meets the threshold
+                val shouldDropOver = bestRatio >= threshold
+                if (shouldDropOver) {
                     onDropOver?.invoke(droppingKey, overKey)
                 }
             }
@@ -532,7 +535,7 @@ open class ReorderableLazyCollectionState<out T> internal constructor(
                 val dragKey = draggingItem.key
                 val overKey = targetItem.key
                 val canMove = canDragOver?.invoke(dragKey, overKey, ratio) ?: true
-                if (ratio > 0.8)                Log.d("Reorderable", "onDrag: drag=" + dragKey + " over=" + overKey + " ratio=" + String.format("%.2f", ratio) + " canMove=" + canMove)
+                Log.d("Reorderable", "onDrag: drag=" + dragKey + " over=" + overKey + " ratio=" + String.format("%.2f", ratio) + " canMove=" + canMove)
                 if (!canMove) {
                     onMoveStateMutex.unlock()
                     return
