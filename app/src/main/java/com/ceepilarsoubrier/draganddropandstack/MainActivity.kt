@@ -103,9 +103,8 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import sh.calvin.reorderable.ReorderableItem
-import sh.calvin.reorderable.rememberReorderableLazyGridState
-import sh.calvin.reorderable.ScrollMoveMode
+import sh.calvin.reorderable.ReorderableLazyVerticalGrid
+import sh.calvin.reorderable.StackingMode
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -150,162 +149,73 @@ data class Item(val id: Int, var text: String, val size: Int)
 fun SimpleReorderableLazyVerticalGridScreen(
     items: List<Item>
 ) {
-    // Dentro de SimpleReorderableLazyVerticalGridScreen(...)
-    val overlapThreshold = 0.8f      // cambia a tu gusto, p.ej. 0.7f
-    val hoverDelayMs = 800L          // cambia a tu gusto, p.ej. 500L
+    val overlapThreshold = 0.70f
+    val hoverDelayMs = 500L
 
     var list by remember { mutableStateOf(items) }
     val lazyGridState = rememberLazyGridState()
-    val coroutineScope = rememberCoroutineScope()
-    val hoverAccumByTarget = remember { mutableStateMapOf<Int, Long>() }
-    var lastHoverTarget by remember { mutableStateOf<Int?>(null) }
-    var lastUptime by remember { mutableStateOf(android.os.SystemClock.uptimeMillis()) }
 
-    val reorderableLazyGridState = rememberReorderableLazyGridState(
-        lazyGridState,
-        scrollMoveMode = ScrollMoveMode.INSERT,
-        onMove = { from, to ->
-            list = list.toMutableList().apply {
-                add(to.index, removeAt(from.index))
-            }.toList()
-        },
-        canDragOver = { dragKey, overKey, ratioFromLib ->
-            val dragId = (dragKey as? Int) ?: return@rememberReorderableLazyGridState true
-            val overId = (overKey as? Int) ?: return@rememberReorderableLazyGridState true
-
-            val now = android.os.SystemClock.uptimeMillis()
-            val elapsed = now - lastUptime
-            lastUptime = now
-
-            val current = if (lastHoverTarget == overId) {
-                (hoverAccumByTarget[overId] ?: 0L) + elapsed
-            } else 0L
-            hoverAccumByTarget[overId] = current
-            lastHoverTarget = overId
-
-            when {
-                ratioFromLib >= overlapThreshold -> false
-                current < hoverDelayMs -> false
-                else -> true
-            }
-        },
-        onDropOver = { dragKey, overKey ->
-            val dragId = (dragKey as? Int) ?: return@rememberReorderableLazyGridState
-            val overId = (overKey as? Int) ?: return@rememberReorderableLazyGridState
-            val draggedItem = list.firstOrNull { it.id == dragId }
-            val overItem = list.firstOrNull { it.id == overId }
-            coroutineScope.launch {
-                val message = if (draggedItem != null && overItem != null) {
-                    overItem.text += "," + draggedItem.text
-                    list = list.toMutableList().apply {
-                        remove(draggedItem) }.toList()
-                    "${draggedItem.text} soltado sobre ${overItem.text}"
-
-                } else {
-                    "item $dragId soltado sobre item $overId"
-                }
-                //snackbarHostState.showSnackbar(message)
-                // Reset hover/timing state after handling a drop to avoid stale 800ms carry-over
-                hoverAccumByTarget.clear()
-                lastHoverTarget = null
-                lastUptime = android.os.SystemClock.uptimeMillis()
-            }
-        }
-    )
-
-    // Track item bounds in root for overlap calculations
-    val itemBoundsById = remember { mutableStateMapOf<Int, Rect>() }
-
-    LazyVerticalGrid(
+    ReorderableLazyVerticalGrid(
+        items = list,
+        key = { it.id },
         columns = GridCells.Adaptive(minSize = 96.dp),
         modifier = Modifier.fillMaxWidth(),
         state = lazyGridState,
         contentPadding = PaddingValues(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        itemsIndexed(list, key = { _, item -> item.id }) { index, item ->
-            ReorderableItem(reorderableLazyGridState, item.id) {
-                val interactionSource = remember { MutableInteractionSource() }
-
-                Card(
-                    onClick = {},
+        stackingMode = StackingMode.Enabled, // Cambiar a Disabled para sólo ordenar
+        overlapThreshold = overlapThreshold,
+        hoverDelayMs = hoverDelayMs,
+        onMove = { fromIndex, toIndex ->
+            list = list.toMutableList().apply {
+                add(toIndex, removeAt(fromIndex))
+            }.toList()
+        },
+        onDropOver = { dragKey, overKey ->
+            val dragId = (dragKey as? Int) ?: return@ReorderableLazyVerticalGrid
+            val overId = (overKey as? Int) ?: return@ReorderableLazyVerticalGrid
+            val draggedItem = list.firstOrNull { it.id == dragId }
+            val overItem = list.firstOrNull { it.id == overId }
+            if (draggedItem != null && overItem != null) {
+                overItem.text += "," + draggedItem.text
+                list = list.toMutableList().apply { remove(draggedItem) }.toList()
+            }
+        }
+    ) { item, _ ->
+        val interactionSource = remember { MutableInteractionSource() }
+        Card(
+            onClick = {},
+            modifier = Modifier
+                .height(96.dp)
+                .clearAndSetSemantics { },
+            interactionSource = interactionSource,
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                IconButton(
                     modifier = Modifier
-                        .height(96.dp)
-                        .onGloballyPositioned { coordinates ->
-                            itemBoundsById[item.id] = coordinates.boundsInRoot()
-                        }
-                        .semantics {
-                            customActions = listOf(
-                                CustomAccessibilityAction(
-                                    label = "Move Before",
-                                    action = {
-                                        if (index > 0) {
-                                            list = list.toMutableList().apply {
-                                                add(index - 1, removeAt(index))
-                                            }
-                                            true
-                                        } else {
-                                            false
-                                        }
-                                    }
-                                ),
-                                CustomAccessibilityAction(
-                                    label = "Move After",
-                                    action = {
-                                        if (index < list.size - 1) {
-                                            list = list.toMutableList().apply {
-                                                add(index + 1, removeAt(index))
-                                            }
-                                            true
-                                        } else {
-                                            false
-                                        }
-                                    }
-                                ),
-                            )
-                        },
-                    interactionSource = interactionSource,
-                ) {
-                    Box(Modifier.fillMaxSize()) {
-                        IconButton(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .draggableHandle(
-                                    onDragStarted = {
-                                        // Fresh timing per drag session
-                                        hoverAccumByTarget.clear()
-                                        lastHoverTarget = null
-                                        lastUptime = android.os.SystemClock.uptimeMillis()
-                                    },
-                                    onDragStopped = {
-                                        // Also reset when drag ends without drop-over
-                                        hoverAccumByTarget.clear()
-                                        lastHoverTarget = null
-                                        lastUptime = android.os.SystemClock.uptimeMillis()
-                                    },
-                                    interactionSource = interactionSource,
-                                )
-                                .clearAndSetSemantics { },
-                            onClick = {},
-                        ) {
-                            Icon(Icons.Rounded.Menu, contentDescription = "Reorder")
-                        }
-                        Text(
-                            item.text,
-                            Modifier
-                                .align(Alignment.Center)
-                                .padding(horizontal = 8.dp),
-                            textAlign = TextAlign.Center,
+                        .align(Alignment.TopEnd)
+                        .draggableHandle(
+                            interactionSource = interactionSource,
                         )
-                    }
+                        .clearAndSetSemantics { },
+                    onClick = {},
+                ) {
+                    Icon(Icons.Rounded.Menu, contentDescription = "Reorder")
                 }
+                Text(
+                    item.text,
+                    Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = 8.dp),
+                    textAlign = TextAlign.Center,
+                )
             }
         }
     }
 }
 
-
+/*
 
 private fun Rect.area(): Float = max(0f, width) * max(0f, height)
 
@@ -343,6 +253,7 @@ private object dragSession {
         lastOverlapRatio = 0f
     }
 }
+*/
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {

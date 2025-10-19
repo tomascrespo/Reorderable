@@ -526,9 +526,7 @@ open class ReorderableLazyCollectionState<out T> internal constructor(
             val targetItem = findTargetItem(
                 draggingItemRect,
                 items = state.layoutInfo.visibleItemsInfo,
-            ) {
-                it.index != draggingItem.index
-            }
+            ) { it.index != draggingItem.index }
             if (targetItem != null) {
                 // External gate: prevent displacement when requested
                 val ratio = overlapRatio(draggingItemRect, targetItem)
