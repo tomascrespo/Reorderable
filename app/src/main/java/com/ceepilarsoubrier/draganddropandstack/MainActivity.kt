@@ -90,6 +90,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -103,6 +105,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import sh.calvin.reorderable.ReorderableLazyHorizontalGrid
 import sh.calvin.reorderable.ReorderableLazyVerticalGrid
 import sh.calvin.reorderable.StackingMode
 
@@ -111,31 +114,52 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+
         setContent {
             DragAndDropAndStackTheme {
                 Scaffold(
                     modifier = Modifier.fillMaxSize()
                 ) { innerPadding ->
                     // Usa una Column para organizar los elementos verticalmente
-                    Column(modifier = Modifier.padding(innerPadding)) {
+
+                    Column(modifier = Modifier
+                        .padding(innerPadding)
+                        ) {
                         Greeting(
-                            name = "Grid 1",
+                            name = "Vertical Grid (Reorderable and Stackable)",
                             modifier = Modifier.padding(innerPadding)
                         )
+
                         val items = (0..25).map {
                             Item(id = it, text = "$it", size = if (it % 2 == 0) 70 else 100)
                         }
                         SimpleReorderableLazyVerticalGridScreen(items)
 
                         Greeting(
-                            name = "Grid 2",
+                            name = "Horizontal Grid (Reorderable and Stackable)",
                             modifier = Modifier.padding(innerPadding)
                         )
 
                         val otherItems = (30..50).map {
                             Item(id = it, text = "$it", size = if (it % 2 == 0) 70 else 100)
                         }
-                        SimpleReorderableLazyVerticalGridScreen(otherItems)
+                        Box(modifier = Modifier.weight(1f)) {
+                            SimpleReorderableLazyHorizontalGridScreen(
+                                otherItems,
+                                StackingMode.Enabled
+                            )
+                        }
+                        Greeting(
+                            name = "Horizontal Grid (Reorderable but NOT Stackable)",
+                            modifier = Modifier.padding(innerPadding)
+                        )
+                        Box(modifier = Modifier.weight(1f)) {
+
+                            SimpleReorderableLazyHorizontalGridScreen(
+                                otherItems,
+                                StackingMode.Disabled
+                            )
+                        }
                     }
                 }
             }
@@ -215,45 +239,80 @@ fun SimpleReorderableLazyVerticalGridScreen(
     }
 }
 
-/*
 
-private fun Rect.area(): Float = max(0f, width) * max(0f, height)
+@Composable
+fun SimpleReorderableLazyHorizontalGridScreen(
+    items: List<Item>,
+    stackingMode: StackingMode
+) {
+    val overlapThreshold = 0.70f
+    val hoverDelayMs = 500L
 
-private fun intersectionArea(a: Rect, b: Rect): Float {
-    val left = max(a.left, b.left)
-    val top = max(a.top, b.top)
-    val right = min(a.right, b.right)
-    val bottom = min(a.bottom, b.bottom)
-    val w = right - left
-    val h = bottom - top
-    return if (w > 0f && h > 0f) w * h else 0f
-}
+    var list by remember { mutableStateOf(items) }
+    val lazyGridState = rememberLazyGridState()
 
-// Translate a Rect by an Offset (helper for drag projection)
-private fun Rect.translateBy(offset: Offset): Rect =
-    Rect(left + offset.x, top + offset.y, right + offset.x, bottom + offset.y)
-
-// Simple drag session holder kept at file level (per composition instance it resets on recomposition of modifier)
-private object dragSession {
-    var currentDragId: Int? = null
-    var currentOffset: Offset? = null
-    var dropOverTargetId: Int? = null
-    var lastHoverTargetId: Int? = null
-    var hoverAccumulatedMs: Long? = null
-    var lastEventUptimeMs: Long? = null
-    var lastOverlapRatio: Float = 0f
-
-    fun reset() {
-        currentDragId = null
-        currentOffset = null
-        dropOverTargetId = null
-        lastHoverTargetId = null
-        hoverAccumulatedMs = null
-        lastEventUptimeMs = null
-        lastOverlapRatio = 0f
+    ReorderableLazyHorizontalGrid(
+        items = list,
+        key = { it.id },
+        rows = GridCells.Fixed(1),
+        modifier = Modifier.fillMaxWidth(),
+        state = lazyGridState,
+        contentPadding = PaddingValues(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        stackingMode = stackingMode,
+        overlapThreshold = overlapThreshold,
+        hoverDelayMs = hoverDelayMs,
+        onMove = { fromIndex, toIndex ->
+            list = list.toMutableList().apply {
+                add(toIndex, removeAt(fromIndex))
+            }.toList()
+        },
+        onDropOver = { dragKey, overKey ->
+            val dragId = (dragKey as? Int) ?: return@ReorderableLazyHorizontalGrid
+            val overId = (overKey as? Int) ?: return@ReorderableLazyHorizontalGrid
+            val draggedItem = list.firstOrNull { it.id == dragId }
+            val overItem = list.firstOrNull { it.id == overId }
+            if (draggedItem != null && overItem != null) {
+                overItem.text += "," + draggedItem.text
+                list = list.toMutableList().apply { remove(draggedItem) }.toList()
+            }
+        }
+    ) { item, _ ->
+        val interactionSource = remember { MutableInteractionSource() }
+        Card(
+            onClick = {},
+            modifier = Modifier
+                .height(96.dp)
+                .clearAndSetSemantics { },
+            interactionSource = interactionSource,
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                IconButton(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .draggableHandle(
+                            interactionSource = interactionSource,
+                        )
+                        .clearAndSetSemantics { },
+                    onClick = {},
+                ) {
+                    Icon(Icons.Rounded.Menu, contentDescription = "Reorder")
+                }
+                Text(
+                    item.text,
+                    Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = 8.dp),
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
     }
 }
-*/
+
+
+
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
