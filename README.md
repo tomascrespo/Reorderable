@@ -27,64 +27,87 @@ This is a fork of the great job done by Calvin Liang. I use his library in a pro
 
 ## Usage
 
-You have a complete example in MainActivity.kt (the one in the gif)
+You have a complete example in MainActivity.kt (the one in the gif).
+The basic points are: 
+ - Create a ReorderableLazyVerticalGrid with:
+    - stackingMode
+    - overlapThreshold
+    - hoverDelayMS
+    - onMove
+    - onDropOver
+ - In some compose element use a Modifier.draggableHande or a Modifier.longPressDraggableHandle
+
 
 ```kotlin
-val overlapThreshold = 0.8f      // When 80% of overlap the target item will not move
-val hoverDelayMs = 800L          // If overlapping < 80% the target item will move after 800ms (this delay allows easy movements)
+@Composable
+fun SimpleReorderableLazyVerticalGridScreen(
+    items: List<Item>
+) {
+    val overlapThreshold = 0.70f // 70% of overlap makes bottom item stand still
+    val hoverDelayMs = 500L // 500ms of delay make easy to get any overlap threshold. Fewer ms makes difficult to overlap before below element moves.
 
-val reorderableLazyGridState = rememberReorderableLazyGridState(
-        lazyGridState,
-        onMove = { from, to ->
+    var list by remember { mutableStateOf(items) }
+    val lazyGridState = rememberLazyGridState()
+
+    ReorderableLazyVerticalGrid(
+        items = list,
+        key = { it.id },
+        columns = GridCells.Adaptive(minSize = 96.dp),
+        modifier = Modifier.fillMaxWidth(),
+        state = lazyGridState,
+        contentPadding = PaddingValues(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        stackingMode = StackingMode.Enabled, // Cambiar a Disabled para sólo ordenar
+        overlapThreshold = overlapThreshold,
+        hoverDelayMs = hoverDelayMs,
+        onMove = { fromIndex, toIndex ->
             list = list.toMutableList().apply {
-                this[to.index] = this[from.index].also {
-                    this[from.index] = this[to.index]
-                }
-            }
-        },
-        canDragOver = { dragKey, overKey, ratioFromLib ->
-            val dragId = (dragKey as? Int) ?: return@rememberReorderableLazyGridState true
-            val overId = (overKey as? Int) ?: return@rememberReorderableLazyGridState true
-
-            val now = android.os.SystemClock.uptimeMillis()
-            val elapsed = now - lastUptime
-            lastUptime = now
-
-            val current = if (lastHoverTarget == overId) {
-                (hoverAccumByTarget[overId] ?: 0L) + elapsed
-            } else 0L
-            hoverAccumByTarget[overId] = current
-            lastHoverTarget = overId
-
-            when {
-                ratioFromLib >= overlapThreshold -> false
-                current < hoverDelayMs -> false
-                else -> true
-            }
+                add(toIndex, removeAt(fromIndex))
+            }.toList()
         },
         onDropOver = { dragKey, overKey ->
-            val dragId = (dragKey as? Int) ?: return@rememberReorderableLazyGridState
-            val overId = (overKey as? Int) ?: return@rememberReorderableLazyGridState
+            val dragId = (dragKey as? Int) ?: return@ReorderableLazyVerticalGrid
+            val overId = (overKey as? Int) ?: return@ReorderableLazyVerticalGrid
             val draggedItem = list.firstOrNull { it.id == dragId }
             val overItem = list.firstOrNull { it.id == overId }
-            coroutineScope.launch {
-                val message = if (draggedItem != null && overItem != null) {
-                    overItem.text += "," + draggedItem.text
-                    list = list.toMutableList().apply {
-                        remove(draggedItem) }.toList()
-                    "${draggedItem.text} soltado sobre ${overItem.text}"
-
-                } else {
-                    "item $dragId soltado sobre item $overId"
-                }
-                //snackbarHostState.showSnackbar(message)
-                // Reset hover/timing state after handling a drop to avoid stale 800ms carry-over
-                hoverAccumByTarget.clear()
-                lastHoverTarget = null
-                lastUptime = android.os.SystemClock.uptimeMillis()
+            if (draggedItem != null && overItem != null) {
+                overItem.text += "," + draggedItem.text
+                list = list.toMutableList().apply { remove(draggedItem) }.toList()
             }
         }
-    )
+    ) { item, _ ->
+        val interactionSource = remember { MutableInteractionSource() }
+        Card(
+            onClick = {},
+            modifier = Modifier
+                .height(96.dp)
+                .clearAndSetSemantics { },
+            interactionSource = interactionSource,
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                IconButton(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .draggableHandle(
+                            interactionSource = interactionSource,
+                        )
+                        .clearAndSetSemantics { },
+                    onClick = {},
+                ) {
+                    Icon(Icons.Rounded.Menu, contentDescription = "Reorder")
+                }
+                Text(
+                    item.text,
+                    Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = 8.dp),
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
 
 ```
  
