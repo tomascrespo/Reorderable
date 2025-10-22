@@ -661,6 +661,28 @@ open class ReorderableLazyCollectionState<out T> internal constructor(
         targetItem: LazyCollectionItemInfo<T>,
     ): Float {
         val targetRect = Rect(targetItem.offset.toOffset(), targetItem.size.toSize())
+
+        val dragWidth = draggingItemRect.right - draggingItemRect.left
+        val dragHeight = draggingItemRect.bottom - draggingItemRect.top
+        val tgtWidth = targetRect.right - targetRect.left
+        val tgtHeight = targetRect.bottom - targetRect.top
+
+        // If any rect collapses on one axis (as in LazyList where cross-axis is unknown),
+        // fall back to a 1D overlap ratio along the non-zero axis.
+        if (dragHeight == 0f || tgtHeight == 0f) {
+            val left = maxOf(draggingItemRect.left, targetRect.left)
+            val right = minOf(draggingItemRect.right, targetRect.right)
+            val overlap = (right - left).coerceAtLeast(0f)
+            return if (dragWidth > 0f) overlap / dragWidth else 0f
+        }
+        if (dragWidth == 0f || tgtWidth == 0f) {
+            val top = maxOf(draggingItemRect.top, targetRect.top)
+            val bottom = minOf(draggingItemRect.bottom, targetRect.bottom)
+            val overlap = (bottom - top).coerceAtLeast(0f)
+            return if (dragHeight > 0f) overlap / dragHeight else 0f
+        }
+
+        // 2D area overlap ratio (grids and fully known sizes)
         val left = maxOf(draggingItemRect.left, targetRect.left)
         val top = maxOf(draggingItemRect.top, targetRect.top)
         val right = minOf(draggingItemRect.right, targetRect.right)
@@ -668,7 +690,7 @@ open class ReorderableLazyCollectionState<out T> internal constructor(
         val w = (right - left).coerceAtLeast(0f)
         val h = (bottom - top).coerceAtLeast(0f)
         val inter = if (w > 0f && h > 0f) w * h else 0f
-        val area = (draggingItemRect.right - draggingItemRect.left) * (draggingItemRect.bottom - draggingItemRect.top)
+        val area = dragWidth * dragHeight
         return if (area > 0f) inter / area else 0f
     }
 

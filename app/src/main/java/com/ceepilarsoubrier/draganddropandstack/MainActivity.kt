@@ -90,6 +90,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.rounded.Menu
@@ -107,6 +108,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import sh.calvin.reorderable.ReorderableLazyHorizontalGrid
 import sh.calvin.reorderable.ReorderableLazyVerticalGrid
+import sh.calvin.reorderable.ReorderableLazyRow
 import sh.calvin.reorderable.StackingMode
 
 class MainActivity : ComponentActivity() {
@@ -150,14 +152,14 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         Greeting(
-                            name = "Horizontal Grid (Reorderable but NOT Stackable)",
+                            name = "Lazy Row",
                             modifier = Modifier.padding(innerPadding)
                         )
                         Box(modifier = Modifier.weight(1f)) {
 
-                            SimpleReorderableLazyHorizontalGridScreen(
+                            SimpleReorderableLazyRowScreen(
                                 otherItems,
-                                StackingMode.Disabled
+                                StackingMode.Enabled
                             )
                         }
                     }
@@ -239,6 +241,75 @@ fun SimpleReorderableLazyVerticalGridScreen(
     }
 }
 
+@Composable
+fun SimpleReorderableLazyRowScreen(
+    items: List<Item>,
+    stackingMode: StackingMode
+) {
+    val overlapThreshold = 0.70f
+    val hoverDelayMs = 500L
+
+    var list by remember { mutableStateOf(items) }
+    val lazyGridState = rememberLazyListState()
+
+    ReorderableLazyRow(
+        items = list,
+        key = { it.id },
+        modifier = Modifier.fillMaxWidth(),
+        state = lazyGridState,
+        contentPadding = PaddingValues(8.dp),
+        //verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        stackingMode = stackingMode,
+        overlapThreshold = overlapThreshold,
+        hoverDelayMs = hoverDelayMs,
+        onMove = { fromIndex, toIndex ->
+            list = list.toMutableList().apply {
+                add(toIndex, removeAt(fromIndex))
+            }.toList()
+        },
+        onDropOver = { dragKey, overKey ->
+            val dragId = (dragKey as? Int) ?: return@ReorderableLazyRow
+            val overId = (overKey as? Int) ?: return@ReorderableLazyRow
+            val draggedItem = list.firstOrNull { it.id == dragId }
+            val overItem = list.firstOrNull { it.id == overId }
+            if (draggedItem != null && overItem != null) {
+                overItem.text += "," + draggedItem.text
+                list = list.toMutableList().apply { remove(draggedItem) }.toList()
+            }
+        }
+    ) { item, _ ->
+        val interactionSource = remember { MutableInteractionSource() }
+        Card(
+            onClick = {},
+            modifier = Modifier
+                .height(96.dp)
+                .clearAndSetSemantics { },
+            interactionSource = interactionSource,
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                IconButton(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .draggableHandle(
+                            interactionSource = interactionSource,
+                        )
+                        .clearAndSetSemantics { },
+                    onClick = {},
+                ) {
+                    Icon(Icons.Rounded.Menu, contentDescription = "Reorder")
+                }
+                Text(
+                    item.text,
+                    Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = 8.dp),
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
 
 @Composable
 fun SimpleReorderableLazyHorizontalGridScreen(

@@ -140,6 +140,10 @@ fun rememberReorderableLazyListState(
         pixelAmountProvider = { lazyListState.layoutInfo.mainAxisViewportSize * ScrollAmountMultiplier },
     ),
     onMove: suspend CoroutineScope.(from: LazyListItemInfo, to: LazyListItemInfo) -> Unit,
+    scrollMoveMode: ScrollMoveMode = ScrollMoveMode.INSERT,
+    canDragOver: ((dragKey: Any, overKey: Any, overlapRatio: Float) -> Boolean)? = null,
+    onDropOver: ((dragKey: Any, overKey: Any) -> Unit)? = null,
+    dropOverlapThreshold: Float? = null,
 ): ReorderableLazyListState {
     val density = LocalDensity.current
     val scrollThresholdPx = with(density) { scrollThreshold.toPx() }
@@ -183,6 +187,10 @@ fun rememberReorderableLazyListState(
                     item.center.x in draggingItem.left..<draggingItem.right
                 }
             },
+            scrollMoveMode = scrollMoveMode,
+            canDragOver = canDragOver,
+            onDropOver = onDropOver,
+            dropOverlapThreshold = dropOverlapThreshold,
         )
     }
     return state
@@ -258,6 +266,10 @@ class ReorderableLazyListState internal constructor(
     scroller: Scroller,
     layoutDirection: LayoutDirection,
     shouldItemMove: (draggingItem: Rect, item: Rect) -> Boolean,
+    scrollMoveMode: ScrollMoveMode = ScrollMoveMode.INSERT,
+    canDragOver: ((dragKey: Any, overKey: Any, overlapRatio: Float) -> Boolean)? = null,
+    onDropOver: ((dragKey: Any, overKey: Any) -> Unit)? = null,
+    dropOverlapThreshold: Float? = null,
 ) : ReorderableLazyCollectionState<LazyListItemInfo>(
     state.toLazyCollectionState(),
     scope,
@@ -265,8 +277,12 @@ class ReorderableLazyListState internal constructor(
     scrollThreshold,
     scrollThresholdPadding,
     scroller,
+    scrollMoveMode = scrollMoveMode,
     layoutDirection = layoutDirection,
     shouldItemMove = shouldItemMove,
+    canDragOver = canDragOver,
+    onDropOver = onDropOver,
+    dropOverlapThreshold = dropOverlapThreshold,
 )
 
 /**
